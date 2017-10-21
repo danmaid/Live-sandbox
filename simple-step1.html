@@ -1,0 +1,69 @@
+<html>
+
+<head>
+    <meta charset="utf-8">
+</head>
+
+<body>
+    <section>
+        <h1>難しいことはいらない</h1>
+        <div>そう。おまじないでいいのだよ。</div>
+        <h2>Step1: SSEでデータ取得して表示する</h2>
+    </section>
+
+    <simple></simple>
+    <script type="riot/tag">
+        <simple>
+            <!-- 表示部 -->
+            <table>
+                <tr each="{ data }">
+                    <td>{ _SOURCE_REALTIME_TIMESTAMP }</td>
+                    <td>{ SYSLOG_IDENTIFIER }</td>
+                    <td>{ MESSAGE }</td>
+                </tr>
+            </table>
+
+            // SSE でイベントを取得して Rx と組み合わせる
+            var source = new EventSource('http://don.danmaid.com:19532/entries');
+            var subject = new Rx.Subject();
+        
+            source.onerror = function (e) { subject.error(e); }
+            source.onmessage = function (m) { subject.next(m); }
+            subject
+            .subscribe(
+                null,
+                function(err) { source.close(); },
+                function() { source.close(); }
+            );
+
+            // 流れてくるデータの処理
+            self = this;
+            data = [];
+            subject
+            .map(function(x) {
+                return JSON.parse(x.data);
+            })
+            // 重いから100件に限定する
+            .take(100)
+            .subscribe(
+                function(next) {
+                    // console.debug(next);
+                    data.push(next);
+                    self.update();
+                },
+                null,
+                function() {
+                    // TODO: HOTでぶら下がってるやつがいなくなったら終了処理するようにしたい
+                    console.log('おなか一杯だから止めて！');
+                    subject.complete();
+                }
+            );
+        </simple>
+    </script>
+
+    <script src="https://unpkg.com/rxjs/bundles/Rx.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/riot/riot+compiler.min.js"></script>
+    <script>riot.mount('*')</script>
+</body>
+
+</html>
